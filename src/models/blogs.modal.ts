@@ -2,99 +2,102 @@ import { Schema, model, Document } from "mongoose";
 
 export interface IBlogPost extends Document {
   title: string;
-  slug: string;
+  subTitle: string;
+  image: string;
   content: string;
-  excerpt?: string;
-  categories: string[]; // Array of ObjectIds referencing categories
+  categories: string;
+  url: string;
   tags: string[];
-  author: any; // ObjectId referencing User
-  status: "draft" | "published";
-  coverImage?: string;
   meta: {
     title: string;
     description: string;
-    keywords: string[];
   };
-  publishedAt?: Date;
+  headline: boolean;
+  slug: string;
+  excerpt: string;
+  author: string;
+  status: string;
   createdAt: Date;
   updatedAt: Date;
-  views: number;
 }
 
 const BlogPostSchema = new Schema<IBlogPost>(
+  
   {
     title: {
       type: String,
-      required: true,
-      trim: true,
-      maxlength: 150,
+      required: [true, "Title is required"],
+      maxlength: [150, "Title cannot exceed 150 characters"],
     },
-    slug: {
+    subTitle: {
       type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
+      required: [true, "Sub-title is required"],
+      maxlength: [150, "Sub-title cannot exceed 150 characters"],
+    },
+    image: {
+      type: String,
+      required: [true, "Image URL is required"],
+      match: [
+        /^https?:\/\/.+\.(jpg|jpeg|png|webp|svg)$/i,
+        "Must be a valid image URL",
+      ],
     },
     content: {
       type: String,
-      required: true,
+      required: [true, "Content is required"],
     },
-    excerpt: {
+    categories: {
       type: String,
-      maxlength: 300,
+      required: [true, "Category is required"],
     },
-    categories: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Category",
-      },
-    ],
-    tags: [
-      {
-        type: String,
-        trim: true,
-      },
-    ],
-    author: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    status: {
+    url: {
       type: String,
-      enum: ["draft", "published"],
-      default: "draft",
+      unique: true,
+      required: [true, "URL is required"],
+      // match: [
+      //   /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/[\w\-._~:/?#[\]@!$&'()*+,;=]*)?$/,
+      //   "Must be a valid URL",
+      // ],
     },
-    coverImage: {
-      type: String,
+    tags: {
+      type: [String],
+      default: [],
     },
     meta: {
       title: {
         type: String,
-        required: true,
+        required: [true, "Meta title is required"],
       },
       description: {
         type: String,
-        required: true,
+        required: [true, "Meta description is required"],
       },
-      keywords: [
-        {
-          type: String,
-          trim: true,
-        },
-      ],
     },
-    publishedAt: {
-      type: Date,
+    headline: {
+      type: Boolean,
+      default: false,
     },
-    views: {
-      type: Number,
-      default: 0,
+    slug: {
+      type: String,
+      required: [true, "Slug is required"],
+      unique: true,
+    },
+    excerpt: {
+      type: String,
+      maxlength: [300, "Excerpt cannot exceed 300 characters"],
+    },
+    author: {
+      type: String,
+      required: [true, "Author name is required"],
+    },
+    status: {
+      type: String,
+      enum: ["draft", "published", "archived"],
+      default: "draft",
     },
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt
+    timestamps: true, // Automatically adds createdAt and updatedAt fields
   }
 );
 

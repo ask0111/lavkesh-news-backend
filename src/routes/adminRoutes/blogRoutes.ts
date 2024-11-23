@@ -10,10 +10,10 @@ import { blogPostValidationRules } from "../../middlewares/blogPostValidation.mi
 
 const router = express.Router();
 
-router.post("/", blogPostValidationRules, createPost); // Create a post
-router.get("/", getAllPosts); // Get all posts
-router.get("/:id", getPostById); // Get a single post
-router.put("/:id", blogPostValidationRules, updatePostById); // Update a post
-router.delete("/:id", deletePostById); // Delete a post
+router.post("/", blogPostValidationRules, createPost); 
+router.get("/", getAllPosts);
+router.get("/:id", getPostById);
+router.put("/:id", blogPostValidationRules, updatePostById);
+router.delete("/:id", deletePostById); 
 
 export default router;

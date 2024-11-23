@@ -14,41 +14,21 @@ export const createPost = async (req: Request, res: Response) => {
     errorResponse(res, "", errors.array(), StatusCode.BAD_REQUEST);
     return;
   }
-
-  const {
-    title,
-    slug,
-    content,
-    excerpt,
-    categories,
-    tags,
-    author,
-    status,
-    coverImage,
-    meta,
-  } = req.body;
-
+  
   try {
-    const newPost = new BlogPost({
-      title,
-      slug,
-      content,
-      excerpt,
-      categories,
-      tags,
-      author,
-      status,
-      coverImage,
-      meta,
-    });
-
-    const data = await newPost.save();
-    successResponse(
-      res,
-      "Post created successfully!",
-      data,
-      StatusCode.CREATED
-    );
+    const isValidUrl = await BlogPost.find({url: `${req.body.categories}/${req.body.slug}`});
+    if(isValidUrl && isValidUrl.length > 0){
+      successResponse(res, "This url already exist!", 'This url already exist!', StatusCode.BAD_REQUEST);
+    }else{
+      const newPost = new BlogPost({...req.body, url: `${req.body.categories}/${req.body.slug}`});
+      const data = await newPost.save();
+      successResponse(
+        res,
+        "Post created successfully!",
+        data,
+        StatusCode.CREATED
+      );
+    }
   } catch (error) {
     console.error("Error creating post:", error);
     errorResponse(
@@ -112,7 +92,7 @@ export const updatePostById = async (req: Request, res: Response) => {
       errorResponse(res, "Post not found", {}, StatusCode.NOT_FOUND);
       return;
     }
-    successResponse(res, "", data, StatusCode.OK);
+    successResponse(res, "Updated successfully", data, StatusCode.OK);
   } catch (error) {
     console.error("Error updating post:", error);
     errorResponse(
