@@ -95,13 +95,13 @@ export const sendOtpByEmail = async (req: Request, res: Response) => {
       return;
     }
     await transporter.sendMail(mailOptions);
-    console.log(`OTP sent to ${email}: ${otp}`);
+    // console.log(`OTP sent to ${email}: ${otp}`);
     successResponse(res, "OTP sent successfully", "", StatusCode.OK);
 
     // Automatically remove OTP after 5 minutes
     setTimeout(() => {
       delete otpStore[email];
-      console.log(`OTP expired for ${email}`);
+      // console.log(`OTP expired for ${email}`);
     }, 5 * 60 * 1000);
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -170,7 +170,7 @@ export const verifyOtpByEmail = async (req: Request, res: Response) => {
     );
   }
 };
-console.log(verifiedOTPStore);
+// console.log(verifiedOTPStore);
 export const createUser = async (
   req: Request,
   res: Response

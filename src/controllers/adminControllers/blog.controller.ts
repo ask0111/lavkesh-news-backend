@@ -43,7 +43,7 @@ export const createPost = async (req: Request, res: Response) => {
 // Get all blog posts
 export const getAllPosts = async (req: Request, res: Response) => {
   const {url} = req.query;
-  console.log(url)
+  // console.log(url)
   try {
     const data = url ? await BlogPost.find({url}).populate("author", 'name avtaar posts role') : await BlogPost.find().sort({ createdAt: -1 }).exec();
     successResponse(res, "", data, StatusCode.OK);

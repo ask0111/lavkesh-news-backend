@@ -36,7 +36,7 @@ export const generatePresignedUrl = async (
     const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL valid for 1 hour
     const s3Url = `https://${bucketName}.s3.amazonaws.com/${key}`;
     
-    console.log(presignedUrl, s3Url);
+    // console.log(presignedUrl, s3Url);
     return { presignedUrl, s3Url };
   } catch (error) {
     console.error("Error generating pre-signed URL:", error);
