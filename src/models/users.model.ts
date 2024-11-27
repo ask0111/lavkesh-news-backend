@@ -6,7 +6,8 @@ export interface IUser extends Document {
   name: string;
   email: string;
   password: string;
-  refreshToken: string;
+  refreshToken: string | null;
+  resetToken:string | null;
   role: "editor" | "admin" | "user";
   bio?: string; // Editor's bio or description
   permissions: {
@@ -43,6 +44,9 @@ const UserSchema: Schema<IUser> = new Schema(
       minlength: 6,
     },
     refreshToken: {
+      type: String,
+    },
+    resetToken: {
       type: String,
     },
     role: {

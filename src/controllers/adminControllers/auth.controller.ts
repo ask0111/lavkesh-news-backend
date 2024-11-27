@@ -12,8 +12,13 @@ import {
   generateAccessAndRefereshTokens,
   generateAccessToken,
   generateRefreshToken,
+  generateToken,
   verifyToken,
 } from "../../helpers/auth.helper.function";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { uploadProfile } from "../../routes/adminRoutes/authRoutes";
+import multer from "multer";
+import path from "path";
 
 require("dotenv").config();
 
@@ -33,9 +38,14 @@ const transporter = nodemailer.createTransport({
 const generateOtp = () => Math.floor(1000 + Math.random() * 9000).toString();
 
 export const sendOtpByEmail = async (req: Request, res: Response) => {
-  const {name, email } = req.body;
+  const { name, email } = req.body;
   if (!name || !email) {
-    errorResponse(res, "Name or Email are required", {}, StatusCode.BAD_REQUEST);
+    errorResponse(
+      res,
+      "Name or Email are required",
+      {},
+      StatusCode.BAD_REQUEST
+    );
     return;
   }
 
@@ -72,12 +82,17 @@ export const sendOtpByEmail = async (req: Request, res: Response) => {
       </html>
     `,
   };
-  
+
   try {
-    const isUser = await Users.find({email});
-    if(isUser && isUser.length>0){
-      errorResponse(res, 'User already exists with this email.', 'User already exists with this email.', StatusCode.BAD_REQUEST)
-    return;
+    const isUser = await Users.find({ email });
+    if (isUser && isUser.length > 0) {
+      errorResponse(
+        res,
+        "User already exists with this email.",
+        "User already exists with this email.",
+        StatusCode.BAD_REQUEST
+      );
+      return;
     }
     await transporter.sendMail(mailOptions);
     console.log(`OTP sent to ${email}: ${otp}`);
@@ -155,7 +170,7 @@ export const verifyOtpByEmail = async (req: Request, res: Response) => {
     );
   }
 };
-console.log(verifiedOTPStore)
+console.log(verifiedOTPStore);
 export const createUser = async (
   req: Request,
   res: Response
@@ -218,20 +233,20 @@ export const loginUser = async (req: Request, res: Response) => {
       );
       return;
     }
-const isMatch = await bcrypt.compare(password, user.password);
-if (!isMatch) {
-  errorResponse(
-    res,
-    "Invalid email or password.",
-    "Invalid email or password.",
-    StatusCode.BAD_REQUEST
-  );
-  return;
-}
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      errorResponse(
+        res,
+        "Invalid email or password.",
+        "Invalid email or password.",
+        StatusCode.BAD_REQUEST
+      );
+      return;
+    }
 
-const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
-  user
-);
+    const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
+      user
+    );
     successResponse(
       res,
       "Login successful",
@@ -248,7 +263,10 @@ const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
   }
 };
 
-export const refreshAccessTokenHandler = async (req: Request, res: Response) =>{
+export const refreshAccessTokenHandler = async (
+  req: Request,
+  res: Response
+) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
 
@@ -263,7 +281,7 @@ export const refreshAccessTokenHandler = async (req: Request, res: Response) =>{
   }
 
   try {
-    const decodedToken = verifyToken(
+    const decodedToken = await verifyToken(
       incomingRefreshToken,
       process.env.REFRESH_TOKEN_SECRET
     );
@@ -287,7 +305,7 @@ export const refreshAccessTokenHandler = async (req: Request, res: Response) =>{
         "Refresh token is expired or used",
         StatusCode.UNAUTHORIZED
       );
-      return
+      return;
     }
 
     const { accessToken, refreshToken } = await generateAccessAndRefereshTokens(
@@ -304,6 +322,278 @@ export const refreshAccessTokenHandler = async (req: Request, res: Response) =>{
     errorResponse(
       res,
       "Enternal server error",
+      error,
+      StatusCode.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const sendResetPasswordEmail = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  try {
+    const user = await Users.findOne({ email });
+
+    if (!user) {
+      errorResponse(
+        res,
+        "User not found",
+        "User not found",
+        StatusCode.NOT_FOUND
+      );
+      return;
+    }
+
+    const resetToken = generateToken(
+      { email },
+      process.env.JWT_RESET_SECRET!,
+      "10m"
+    );
+    const resetLink = `${process.env.CLIENT_URL}/private/rbac/reset-password?token=${resetToken}`;
+
+    user.resetToken = resetToken;
+    // user.resetTokenExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    await user.save();
+
+    const mailOptions = {
+      from: process.env.EMAIL_ADMIN,
+      to: email,
+      subject: "Reset Your Password",
+      html: `
+        <p>Click the link below to reset your password. This link is valid for 10 minutes:</p>
+        <a href="${resetLink}" target="_blank">${resetLink}</a>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    successResponse(
+      res,
+      "Reset password link sent to email",
+      "Reset password link sent to email",
+      StatusCode.OK
+    );
+  } catch (error) {
+    errorResponse(
+      res,
+      "Enternal server error",
+      error,
+      StatusCode.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const verifyResetToken = async (req:Request, res:Response)=>{
+  successResponse(res, '', null, StatusCode.OK);
+}
+
+export const resetPassword = async (req: any, res: Response) => {
+  const { newPassword } = req.body;
+
+  try {
+    const user = req.user;
+    // const user =  null;
+    if (!user) {
+      errorResponse(
+        res,
+        "Unauthorized access",
+        "User data not found",
+        StatusCode.UNAUTHORIZED
+      );
+      return;
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update the user's password
+    user.password = hashedPassword;
+    user.resetToken = null; 
+    // user.resetTokenExpiry = null; // Clear reset token expiry
+    await user.save();
+
+    successResponse(
+      res,
+      "Password reset successful",
+      null,
+      StatusCode.OK
+    );
+  } catch (error) {
+    errorResponse(
+      res,
+      "Failed to reset password",
+      error,
+      StatusCode.INTERNAL_SERVER_ERROR
+    );
+  }
+};
+
+export const checkAuthorization = async(req: Request, res: Response)=>{
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    errorResponse(res, "Token is missing", null, StatusCode.UNAUTHORIZED);
+    return ;
+  }
+  
+  try {
+    const decoded = await verifyToken(token, process.env.JWT_ACCESS_SECRET!);
+    const user = await Users.find(decoded._id).select("_id name email avtaar");
+    if(!user){
+      errorResponse(
+        res,
+        "Invalid or expired token",
+        "Invalid or expired token",
+        StatusCode.BAD_REQUEST
+      );
+      return ;
+    }
+    successResponse(res, "Authenticated", user[0], StatusCode.OK);
+  } catch (error) {
+    errorResponse(res, "Invalid token", error, StatusCode.UNAUTHORIZED);
+  }
+}
+
+export const getUserByProfileId = async(req:Request, res: Response)=>{
+  const {profileId} = req.params;
+  if(!profileId){
+    errorResponse(res, 'user id not found', null, StatusCode.BAD_REQUEST);
+    return ;
+  }
+  try {
+    const user = await Users.findById(profileId).select('-password -refreshToken -resetToken');
+    successResponse(res, 'Profile get successfully', user, StatusCode.OK);
+  } catch (error) {
+    errorResponse(
+      res,
+      "Enternal server error",
+      error,
+      StatusCode.INTERNAL_SERVER_ERROR
+    );
+  }
+}
+
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+  },
+});
+
+export const updateUserProfile = async (req: Request, res: Response) => {
+  const { profileId } = req.params;
+  try {
+    // Fetch user by ID
+    const user = await Users.findById(profileId);
+    if (!user) {
+       errorResponse(
+        res,
+        "User ID not found",
+        null,
+        StatusCode.BAD_REQUEST
+      );
+      return
+    }
+
+    const previousUserProfileUrl = user.avtaar;
+
+    // Configure multer for memory storage
+    const storage = multer.memoryStorage();
+    const upload = multer({
+      storage,
+      fileFilter: (req, file, cb) => {
+       
+        const allowedExtensions = [".png", ".PNG", ".jpg", ".jpeg", ".webp"];
+        const fileExtension = path.extname(file.originalname).toLowerCase();
+        if (allowedExtensions.includes(fileExtension)) {
+          cb(null, true);
+        } else {
+          cb(null, false);
+        }
+      },
+    }).single("profilePicture");    
+
+    upload(req, res, async (err) => {
+      if (err) {
+         errorResponse(
+          res,
+          "Error parsing file",
+          err,
+          StatusCode.INTERNAL_SERVER_ERROR
+        );
+        return
+      }
+
+      const { updateFields } = req.body;
+      let updatedData ={};
+
+      if(updateFields){
+         updatedData = JSON.parse(updateFields);
+      }
+      // Handle the image file upload
+      const image = req.file;
+      if (image) {
+
+        const filename = `images/avatars/${Date.now()}${path.extname(
+          image.originalname
+        )}`;
+        const uploadParams = {
+          Bucket: process.env.AWS_BUCKET_NAME,
+          Key: filename,
+          Body: image.buffer,
+          ContentType: image.mimetype,
+        };
+
+        const uploadCommand = new PutObjectCommand(uploadParams);
+        const uploadResult = await s3.send(uploadCommand);
+
+        if (
+          !uploadResult.$metadata.httpStatusCode ||
+          uploadResult.$metadata.httpStatusCode !== 200
+        ) {
+          throw new Error("S3 file upload failed");
+        }
+
+        const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.amazonaws.com/${filename}`;
+
+        updatedData = {
+          ...updatedData,
+          avtaar: imageUrl,
+        }
+        // Optional: Delete the previous avatar from S3 if it exists
+        if (previousUserProfileUrl) {
+
+          const oldKey = previousUserProfileUrl.split(".com/")[1];
+          const deleteParams = {
+            Bucket: process.env.AWS_BUCKET_NAME,
+            Key: oldKey,
+          };
+          await s3.send(new DeleteObjectCommand(deleteParams));
+        }
+      }
+
+      // Update the user's profile in MongoDB
+      const updatedUser = await Users.findByIdAndUpdate(
+        profileId,
+        { $set: updatedData },
+        { new: true } 
+      );
+
+      if (!updatedUser) {
+         errorResponse(
+          res,
+          "Failed to update user profile",
+          null,
+          StatusCode.INTERNAL_SERVER_ERROR
+        );
+        return;
+      }
+
+      successResponse(res, "Profile updated successfully", updatedUser, StatusCode.OK);
+    });
+  } catch (error) {
+    errorResponse(
+      res,
+      "Internal server error",
       error,
       StatusCode.INTERNAL_SERVER_ERROR
     );

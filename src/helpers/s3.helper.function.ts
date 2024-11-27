@@ -61,3 +61,4 @@ export const deleteS3file = async(bucketName: string, folderPath: string, fileNa
     throw new Error('File not deleted!');
   }
 }
+

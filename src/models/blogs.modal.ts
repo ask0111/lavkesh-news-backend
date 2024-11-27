@@ -1,4 +1,4 @@
-import { Schema, model, Document } from "mongoose";
+import { Schema, model, Document, ObjectId } from "mongoose";
 
 export interface IBlogPost extends Document {
   title: string;
@@ -15,7 +15,7 @@ export interface IBlogPost extends Document {
   headline: boolean;
   slug: string;
   excerpt: string;
-  author: string;
+  author: ObjectId;
   status: string;
   createdAt: Date;
   updatedAt: Date;
@@ -86,10 +86,7 @@ const BlogPostSchema = new Schema<IBlogPost>(
       type: String,
       maxlength: [300, "Excerpt cannot exceed 300 characters"],
     },
-    author: {
-      type: String,
-      required: [true, "Author name is required"],
-    },
+    author: { type: Schema.Types.ObjectId, ref: 'User' },
     status: {
       type: String,
       enum: ["draft", "published", "archived"],
